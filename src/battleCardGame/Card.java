@@ -9,15 +9,21 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class Card {
-	private String name;
-	private int life;
-	private int damage;
-	private int armor;
-	public enum Elements{FIRE,WATER,WIND,EARTH};
-	private Elements element;
-	private Ability ability;
-	
-	@Getter
+    // Attributi principali della carta
+    private String name;
+    private int life;
+    private int damage;
+    private int armor;
+    
+    // Possibili tipi elementali
+    public enum Elements { FIRE, WATER, WIND, EARTH };
+    private Elements element;
+    
+    private Ability ability;
+    private boolean hasAttacked = false; // Indica se la carta ha già agito nel turno attuale
+    
+    // Elenco delle abilità speciali con nome e descrizione
+    @Getter
     @AllArgsConstructor
     public enum Ability {
         NONE("Nessuna", "Poteri particolari assenti."),
@@ -32,37 +38,20 @@ public class Card {
         private final String name;
         private final String description;
     }
-	
-	public Card(String name) {
+    
+    // Costruttore che genera una carta con statistiche, elemento e abilità casuali
+    public Card(String name) {
         this.name = name;
+        
+        // Generazione casuale delle statistiche base
         this.life = (int) (Math.random() * 50) + 1;
         this.damage = (int) (Math.random() * 50) + 1;
         this.armor = (int) (Math.random() * 17);
         
-        // Elemento Random
+        // Assegnazione casuale di un elemento dall'enum Elements
         this.element = Elements.values()[(int) (Math.random() * Elements.values().length)];
         
-        // Abilità Random
+        // Assegnazione casuale di un'abilità dall'enum Ability
         this.ability = Ability.values()[(int) (Math.random() * Ability.values().length)];
     }
-	
-	
-	@Override
-    public String toString() {
-        return String.format(
-            "----------------------\n" +
-            " CARD: %s\n" +
-            "----------------------\n" +
-            " Element: %s\n" +
-            " Ability: %s\n" +
-            " Effect:  %s\n" +
-            " Life:    %d HP\n" +
-            " Damage:  %d\n" +
-            " Armor:   %d DEF\n" +
-            "----------------------",
-            getName().toUpperCase(), getElement(), ability.getName(), ability.getDescription(), getLife(),
-            getDamage(), getArmor());
-    }
-	
-	
 }

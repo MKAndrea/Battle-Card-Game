@@ -1,5 +1,7 @@
 package battleCardGame;
 
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -8,108 +10,173 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class Player {
-	private String playerName;
-	private int turn=1;
-	private Card[] hand = new Card[5];
-	private Deck deck;
-	private Card[] field = new Card[5];
-	
-	public Player(String playerName, Deck deck) {
-		super();
-		this.playerName = playerName;
-		this.deck = deck;
-	}
-	
-	public Card playCard(int index) {
-        if (index >= 0 && index < hand.length && hand[index] != null) {
-            Card chosen = hand[index];
-            hand[index] = null; // Lo slot ora è libero per pescare ancora
-            return chosen;
-        }
-        System.out.println("Indice non valido o slot vuoto!");
-        return null;
+    private String playerName;
+    private int playerHP = 100;
+    
+    // Lista dinamica per la mano: si ridimensiona da sola quando aggiungi o togli carte
+    private List<Card> hand = new ArrayList<>();
+    
+    // Array fisso per il campo: rappresenta i 5 slot fisici sul terreno di gioco
+    private Card[] field = new Card[5];
+    private Deck deck;
+
+    public Player(String playerName, Deck deck) {
+        this.playerName = playerName;
+        this.deck = deck;
     }
 
-	
-	public void playerTurn() {
-		 String turn_player=(turn%2==1)? playerName:playerName;
-		 System.out.println(turn_player+" è il tuo turno");
-		 turn++;
-	}
-	
-	
-	public void showHand() {
-	    System.out.println("\n--- MANO DI " + playerName.toUpperCase() + " ---");
-	    
-	    for (int i = 0; i < hand.length; i++) {
-	        if (hand[i] != null) {
-	            // Prendiamo le info essenziali dalla carta
-	            String nome = hand[i].getName();
-	            int hp = hand[i].getLife();
-	            int atk = hand[i].getDamage();
-	            String elem = hand[i].getElement().toString();
-	            String abilName=hand[i].getAbility().getName();
-	            String abilDescription=hand[i].getAbility().getDescription();
-	            
-	            // Stampiamo una riga semplice: [0] Nome - HP: 50 | ATK: 30 | ELEM: FIRE
-	            System.out.println("[" + i + "] " + nome + " - HP: " + hp + " | ATK: " + atk + " | ELEM: " + elem+
-	            		" | ABILITY NAME: "+abilName+" | ABILITY DESC: "+abilDescription);
-	        } else {
-	            System.out.println("[" + i + "] --- SLOT VUOTO ---");
-	        }
-	    }
-	    System.out.println("------------------------------------------");
-	}
-	
-	public void showCard(Card card_played) {
-		System.out.println(card_played.toString());
-	}
-	
-	// Pesca le carte per riempire la mano all'inizio
+    // Sposta una carta dalla mano a uno slot libero sul campo
+    public boolean playCardToField(int handIndex, int fieldSlot) {
+        // Verifica che l'indice della mano scelto esista
+        if (handIndex >= 0 && handIndex < hand.size()) {
+            // Verifica che lo slot sul campo sia valido e libero
+            if (fieldSlot >= 0 && fieldSlot < field.length && field[fieldSlot] == null) {
+                // Rimuove la carta dalla lista (mano) e la mette nell'array (campo)
+                Card cardToPlay = hand.remove(handIndex);
+                field[fieldSlot] = cardToPlay;
+                return true;
+            }
+            System.out.println("[!] Slot del campo occupato o non valido!");
+        } else {
+            System.out.println("[!] Indice mano non valido!");
+        }
+        return false;
+    }
+
+    // Pesca carte dal mazzo fino ad averne 5 in mano
     public void fillHand() {
-        for (int i = 0; i < hand.length; i++) {
-            if (hand[i] == null) { // Pesca solo se lo slot è vuoto
-                hand[i] = deck.drawCard();
+        while (hand.size() < 5 && !deck.isEmpty()) {
+            Card drawn = deck.drawCard();
+            if (drawn != null) {
+                hand.add(drawn);
+            }
+        }
+    }
+
+    // Mostra a video le carte presenti in mano con tutte le loro statistiche
+    public void showHand() {
+        System.out.println("\n--- MANO DI " + playerName.toUpperCase() + " ---");
+        if (hand.isEmpty()) {
+            System.out.println("La tua mano è vuota!");
+        } else {
+            for (int i = 0; i < hand.size(); i++) {
+                Card c = hand.get(i);
+                System.out.println("[" + (i + 1) + "] " + c.getName() + 
+                                   " - HP: " + c.getLife() + 
+                                   " | ARMOR: " + c.getArmor() + 
+                                   " | ATK: " + c.getDamage() + 
+                                   " | EL: " + c.getElement() + 
+                                   " | AB: " + c.getAbility().getName());
+            }
+        }
+    }
+
+    // Gestisce l'attacco tra due carte, calcolando bonus elementali e abilità
+    public void attack(int myIndex, int opponentIndex, Player opponent) {
+        Card myCard = this.field[myIndex];
+        Card opponentCard = opponent.getField()[opponentIndex];
+        
+        if (myCard == null || opponentCard == null) return;
+
+        System.out.println("\n--- SCONTRO: " + myCard.getName() + " VS " + opponentCard.getName() + " ---");
+
+        // Gestione Scudo Divino: annulla l'attacco una volta
+        if (opponentCard.getAbility() == Card.Ability.DIVINE_SHIELD) {
+            System.out.println("[!] ABILITÀ: Lo Scudo Divino di " + opponentCard.getName() + " ha parato il colpo!");
+            opponentCard.setAbility(Card.Ability.NONE); 
+            return; 
+        }
+
+        int baseAtk = myCard.getDamage();
+        double multiplier = calculateMultiplier(myCard.getElement(), opponentCard.getElement());
+        
+        if (multiplier > 1.0) {
+            System.out.println("[⭐] VANTAGGIO ELEMENTALE! " + myCard.getElement() + " vs " + opponentCard.getElement() + " (Danno x2.0)");
+        }
+
+        int totalAtk = (int) (baseAtk * multiplier);
+
+        // Calcolo del danno finale considerando l'armatura o l'abilità Perforante
+        int damageDone;
+        if (myCard.getAbility() == Card.Ability.PIERCING) {
+            damageDone = totalAtk;
+            System.out.println("[!] ABILITÀ: Perforazione! Ignora l'armatura.");
+        } else {
+            damageDone = Math.max(0, totalAtk - opponentCard.getArmor());
+            if (opponentCard.getArmor() > 0 && damageDone > 0) {
+                System.out.println("[V] L'armatura riduce il danno di " + opponentCard.getArmor());
+            }
+        }
+
+        // Applica il danno alla carta nemica
+        opponentCard.setLife(opponentCard.getLife() - damageDone);
+        System.out.println(">>> " + myCard.getName() + " infligge " + damageDone + " danni.");
+
+        // Attiva eventuali effetti secondari dopo il colpo
+        applyOnHitEffects(myCard, opponentCard, damageDone);
+        // Controlla se una delle due carte è morta nello scontro
+        checkDeaths(myIndex, opponentIndex, opponent);
+    }
+
+    // Gestisce le abilità che si attivano nel momento in cui viene inflitto un danno
+    private void applyOnHitEffects(Card attacker, Card defender, int damage) {
+        if (attacker.getAbility() == Card.Ability.POISON && damage > 0) {
+            defender.setArmor(Math.max(0, defender.getArmor() - 2));
+            System.out.println("[!] ABILITÀ: Veleno! Corazza ridotta.");
+        }
+        if (defender.getAbility() == Card.Ability.BERSERK && damage > 0 && defender.getLife() > 0) {
+            defender.setDamage(defender.getDamage() + 5);
+            System.out.println("[!] ABILITÀ: Berserk! Attacco aumentato.");
+        }
+        if (attacker.getAbility() == Card.Ability.LIFE_STEAL && damage > 0) {
+            int heal = damage / 2;
+            attacker.setLife(attacker.getLife() + heal);
+            System.out.println("[!] ABILITÀ: Life Steal! Curato di " + heal);
+        }
+        if (defender.getAbility() == Card.Ability.THORNS && damage > 0) {
+            int recoil = (int)(damage * 0.3);
+            attacker.setLife(attacker.getLife() - recoil);
+            System.out.println("[!] ABILITÀ: Spine! Riflessi " + recoil + " danni.");
+        }
+    }
+
+    // Calcola il bonus di danno (x2) basato sul tipo elementale
+    private double calculateMultiplier(Card.Elements a, Card.Elements d) {
+        if ((a == Card.Elements.FIRE && d == Card.Elements.WIND) ||
+            (a == Card.Elements.WIND && d == Card.Elements.EARTH) ||
+            (a == Card.Elements.EARTH && d == Card.Elements.WATER) ||
+            (a == Card.Elements.WATER && d == Card.Elements.FIRE)) {
+            return 2.0;
+        }
+        return 1.0;
+    }
+    
+    // Controlla la vita delle carte e le rimuove dal campo se arrivano a 0
+    private void checkDeaths(int myIndex, int opponentIndex, Player opponent) {
+        if (opponent.getField()[opponentIndex].getLife() <= 0) {
+            System.out.println(">>> " + opponent.getField()[opponentIndex].getName() + " distrutta!");
+            opponent.getField()[opponentIndex] = null;
+        }
+        if (this.field[myIndex] != null && this.field[myIndex].getLife() <= 0) {
+            System.out.println(">>> " + this.field[myIndex].getName() + " caduta!");
+            this.field[myIndex] = null;
+        }
+    }
+    
+    // Ripristina la possibilità di attacco per tutte le carte sul campo a inizio turno
+    public void resetCardsReady() {
+        for (Card c : field) {
+            if (c != null) {
+                c.setHasAttacked(false);
             }
         }
     }
     
-    public void attack(int myIndex, int opponentIndex, Player opponent) {
-        // 1. Recupero la mia carta dal mio campo
-        Card myCard = this.field[myIndex];
-        
-        // 2. Recupero la carta del nemico dal campo dell'oggetto 'opponent'
-        Card opponentCard = opponent.getField()[opponentIndex];
-
-        // 3. Controllo di sicurezza: entrambi gli slot devono avere una carta
-        if (myCard == null) {
-            System.out.println("Errore: Non c'è nessuna carta nel tuo slot " + myIndex);
-            return;
+ // Controlla se tutti gli slot del campo sono occupati
+    public boolean isFieldFull() {
+        for (Card c : field) {
+            if (c == null) return false; // Se trova anche solo uno slot null, non è pieno
         }
-        if (opponentCard == null) {
-            System.out.println("Errore: Il nemico non ha una carta nello slot " + opponentIndex);
-            return;
-        }
-
-        // 4. Calcolo del danno (usando la tua logica: Danno - Armatura)
-        System.out.println(myCard.getName() + " attacca " + opponentCard.getName() + "!");
-        
-        int damageDone = myCard.getDamage() - opponentCard.getArmor();
-        if (damageDone < 0) damageDone = 0; // L'armatura non può "curare"
-
-        // 5. Applico il danno alla carta nemica
-        int remainingLife = opponentCard.getLife() - damageDone;
-        opponentCard.setLife(remainingLife);
-
-        System.out.println("Danno inflitto: " + damageDone);
-
-        // 6. Controllo morte della carta nemica
-        if (opponentCard.getLife() <= 0) {
-            System.out.println("La carta " + opponentCard.getName() + " è stata distrutta!");
-            opponent.getField()[opponentIndex] = null; // Rimuovo la carta dal campo nemico
-        } else {
-            System.out.println(opponentCard.getName() + " sopravvive con " + opponentCard.getLife() + " HP.");
-        }
+        return true;
     }
-	
 }
