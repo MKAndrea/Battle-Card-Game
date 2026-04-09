@@ -71,7 +71,6 @@ public class Player {
         }
     }
 
-    // Gestisce l'attacco tra due carte, calcolando bonus elementali e abilità
     public void attack(int myIndex, int opponentIndex, Player opponent) {
         Card myCard = this.field[myIndex];
         Card opponentCard = opponent.getField()[opponentIndex];
@@ -80,7 +79,7 @@ public class Player {
 
         System.out.println("\n--- SCONTRO: " + myCard.getName() + " VS " + opponentCard.getName() + " ---");
 
-        // Gestione Scudo Divino: annulla l'attacco una volta
+        // 1. GESTIONE SCUDO DIVINO
         if (opponentCard.getAbility() == Card.Ability.DIVINE_SHIELD) {
             System.out.println("[!] ABILITÀ: Lo Scudo Divino di " + opponentCard.getName() + " ha parato il colpo!");
             opponentCard.setAbility(Card.Ability.NONE); 
@@ -88,15 +87,23 @@ public class Player {
         }
 
         int baseAtk = myCard.getDamage();
+
+        // 2. GESTIONE CONTROLLO LUCKY STRIKE ---
+        if (myCard.getAbility() == Card.Ability.LUCKY_STRIKE && Math.random() < 0.25) {
+            baseAtk *= 2;
+            System.out.println("[⭐] ABILITÀ: Colpo Critico! Il danno base raddoppia a " + baseAtk);
+        }
+
+        // 3. CALCOLO MOLTIPLICATORE ELEMENTALE
         double multiplier = calculateMultiplier(myCard.getElement(), opponentCard.getElement());
         
         if (multiplier > 1.0) {
-            System.out.println("[⭐] VANTAGGIO ELEMENTALE! " + myCard.getElement() + " vs " + opponentCard.getElement() + " (Danno x2.0)");
+            System.out.println("[🔥] VANTAGGIO ELEMENTALE! " + myCard.getElement() + " vs " + opponentCard.getElement() + " (Danno x2.0)");
         }
 
         int totalAtk = (int) (baseAtk * multiplier);
 
-        // Calcolo del danno finale considerando l'armatura o l'abilità Perforante
+        // 4. CALCOLO DANNO FINALE (Armor o Piercing)
         int damageDone;
         if (myCard.getAbility() == Card.Ability.PIERCING) {
             damageDone = totalAtk;
@@ -108,13 +115,12 @@ public class Player {
             }
         }
 
-        // Applica il danno alla carta nemica
+        // 5. APPLICAZIONE DANNO
         opponentCard.setLife(opponentCard.getLife() - damageDone);
         System.out.println(">>> " + myCard.getName() + " infligge " + damageDone + " danni.");
 
-        // Attiva eventuali effetti secondari dopo il colpo
+        // 6. EFFETTI SECONDARI E CONTROLLO MORTI
         applyOnHitEffects(myCard, opponentCard, damageDone);
-        // Controlla se una delle due carte è morta nello scontro
         checkDeaths(myIndex, opponentIndex, opponent);
     }
 
